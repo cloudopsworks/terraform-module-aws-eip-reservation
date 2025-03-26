@@ -1,4 +1,4 @@
-name: Terraform VPC Setup Module
+name: Terraform AWS Elastic IP Reservation Module
 #logo: logo/logo.jpg
 
 license: "APACHE2"
@@ -8,10 +8,21 @@ copyrights:
     url: "https://cloudops.works"
     year: "2024"
 
-github_repo: cloudopsworks/terraform-module-aws-vpc-setup
+github_repo: cloudopsworks/terraform-module-eip-reservation
 
 description: |-
-  VPC Module for setting up basic environment.
+  This Terraform module is designed to manage AWS Elastic IP (EIP) reservations. It provides a simple and reusable way 
+  to allocate and associate Elastic IPs with AWS resources such as EC2 instances, network interfaces, and more. 
+  The module includes the following features:
+  
+  - Allocation of Elastic IPs
+  - Association of Elastic IPs with EC2 instances or network interfaces
+  - Support for tagging resources
+  - Conditional creation of resources based on input variables
+  - Integration with other AWS services and resources
+
+  The module is intended to be used as part of a larger infrastructure setup, allowing for easy management and 
+  reservation of Elastic IPs within your AWS environment.
 
 # Introduction to the project
 #introduction: |-
