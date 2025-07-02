@@ -18,6 +18,6 @@ resource "aws_eip" "eip_reservation" {
   customer_owned_ipv4_pool  = var.eip_settings.customer_owned_ipv4_pool_id
   ipam_pool_id              = var.eip_settings.ipam_pool_id
   tags = merge({
-    Name = "eip-${lower(var.org.organization_unit)}-${lower(var.org.environment_name)}-${lower(var.org.environment_type)}-${count.index}-reservation"
+    Name = "eip-${local.system_name}-${count.index}-reservation"
   }, local.all_tags)
 }
