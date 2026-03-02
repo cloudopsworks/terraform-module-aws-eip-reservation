@@ -26,16 +26,102 @@ description: |-
 
 # Introduction to the project
 introduction: |-
-#  This is an introduction.
+  This module simplifies the process of reserving and managing AWS Elastic IPs. It allows for bulk allocation and easy association with other AWS resources, all while maintaining consistent tagging and organizational standards based on Cloud Ops Works practices.
 
 # How to use this project
 usage: |-
+  To use this module within a Terragrunt configuration, include it in your `terragrunt.hcl` file:
+
+  ```hcl
+  terraform {
+    source = "github.com/cloudopsworks/terraform-module-aws-eip-reservation.git?ref=v1.0.0"
+  }
+
+  inputs = {
+    reservation_number = 1   # (Optional) Number of reserved Elastic IPs. Default is 1.
+    eip_settings = {   # (Optional) Map of settings for the EIP.
+      domain                      = "vpc"   # (Optional) Indicates whether the Elastic IP is for use with instances in a VPC or with instances in EC2-Classic. Possible values: vpc, standard. Default is "vpc".
+      ip_address                  = null    # (Optional) A specific IP address from an AWS public IPv4 pool. Default is null.
+      associate_with_private_ip   = null    # (Optional) The primary or secondary private IP address to associate with the Elastic IP. Default is null.
+      instance_id                 = null    # (Optional) The ID of an EC2 instance. Default is null.
+      network_interface_id        = null    # (Optional) The ID of a network interface. Default is null.
+      public_ipv4_pool_id         = null    # (Optional) The ID of a public IPv4 pool. Default is null.
+      customer_owned_ipv4_pool_id = null    # (Optional) The ID of a customer-owned IPv4 pool. Default is null.
+      ipam_pool_id                = null    # (Optional) The ID of an IPAM pool. Default is null.
+    }
+    is_hub = false   # (Optional) Is this a hub or spoke configuration? Default is false.
+    spoke_def = "001"   # (Optional) Spoke ID Number, must be a 3 digit number. Default is "001".
+    org = {   # (Required) Organization details.
+      organization_name = "example-org"  # (Required) Name of the organization.
+      organization_unit = "operations"   # (Required) Name of the organization unit.
+      environment_type  = "production"   # (Required) Type of the environment.
+      environment_name  = "main"         # (Required) Name of the environment.
+    }
+    extra_tags = {   # (Optional) Extra tags to add to the resources.
+      Owner = "CloudOps"
+    }
+  }
+  ```
+
+  ### Variables documentation in YAML format:
+
+  ```yaml
+  reservation_number: 1   # (Optional) Number of reserved Elastic IPs. Default is 1.
+  eip_settings:   # (Optional) Map of settings for the EIP. Default is {}.
+    domain: "vpc"   # (Optional) Indicates whether the Elastic IP is for use with instances in a VPC or with instances in EC2-Classic. Possible values: vpc, standard. Default is "vpc".
+    ip_address: null   # (Optional) A specific IP address from an AWS public IPv4 pool. Default is null.
+    associate_with_private_ip: null   # (Optional) The primary or secondary private IP address to associate with the Elastic IP. Default is null.
+    instance_id: null   # (Optional) The ID of an EC2 instance. Default is null.
+    network_interface_id: null   # (Optional) The ID of a network interface. Default is null.
+    public_ipv4_pool_id: null   # (Optional) The ID of a public IPv4 pool. Default is null.
+    customer_owned_ipv4_pool_id: null   # (Optional) The ID of a customer-owned IPv4 pool. Default is null.
+    ipam_pool_id: null   # (Optional) The ID of an IPAM pool. Default is null.
+  is_hub: false   # (Optional) Is this a hub or spoke configuration? Possible values: true, false. Default is false.
+  spoke_def: "001"   # (Optional) Spoke ID Number, must be a 3 digit number. Default is "001".
+  org:   # (Required) Organization details.
+    organization_name: "example-org"   # (Required) Name of the organization.
+    organization_unit: "operations"    # (Required) Name of the organization unit.
+    environment_type: "production"     # (Required) Type of the environment.
+    environment_name: "main"           # (Required) Name of the environment.
+  extra_tags: {}   # (Optional) Extra tags to add to the resources. Default is {}.
+  ```
 
 # Example usage
 examples: |-
+  ### Basic Usage
+  Create a single Elastic IP with default settings:
+  ```hcl
+  inputs = {
+    org = {
+      organization_name = "example-org"
+      organization_unit = "it"
+      environment_type  = "staging"
+      environment_name  = "app"
+    }
+  }
+  ```
+
+  ### Multiple Reservations
+  Reserve 5 Elastic IPs:
+  ```hcl
+  inputs = {
+    reservation_number = 5
+    org = {
+      organization_name = "example-org"
+      organization_unit = "it"
+      environment_type  = "prod"
+      environment_name  = "web"
+    }
+  }
+  ```
 
 # How to get started quickly
 quickstart: |-
+  To get started quickly with this module:
+  1. Define your Terragrunt configuration in a `terragrunt.hcl` file.
+  2. Configure the required `org` variables to match your environment.
+  3. Run `terragrunt plan` to review the allocation plan.
+  4. Run `terragrunt apply` to allocate and reserve the Elastic IPs.
 
 include:
   - "docs/targets.md"
