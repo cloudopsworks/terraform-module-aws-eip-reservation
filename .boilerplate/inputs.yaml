@@ -1,18 +1,12 @@
 # Module configuration
-# Required variables
-{{- range .requiredVariables }}
-{{- if ne .Name "org"}}
-# Description {{ .Description }} , Type: {{ .Type }}
-{{ .Name }}: {{ .DefaultValuePlaceholder }}
-{{- end }}
+reservation_number: 1 # (Optional) Number of Elastic IP addresses to allocate. Default: 1.
 
-{{- end }}
-# Optional variables
-{{- range .optionalVariables }}
-{{- if ne .Name "is_hub" "spoke_def" "extra_args" }}
-# Description {{ .Description }} , Type: {{ .Type }}
-#{{ .Name }}: {{ .DefaultValue }}
-{{- end }}
-
-{{- end }}
-
+eip_settings: # (Optional) Elastic IP allocation settings. Default: {}.
+  domain: "vpc" # (Optional) Allocation domain. Use "vpc" for modern VPC allocations; "standard" only applies to legacy EC2-Classic capable accounts. Default: "vpc".
+  ip_address: null # (Optional) Specific address to allocate from an AWS-owned public IPv4 pool when available. Default: null.
+  associate_with_private_ip: null # (Optional) Primary or secondary private IPv4 address to associate when attaching the EIP during allocation. Default: null.
+  instance_id: null # (Optional) EC2 instance ID to associate during allocation. Default: null.
+  network_interface_id: null # (Optional) Network interface ID to associate during allocation. Default: null.
+  public_ipv4_pool_id: null # (Optional) Public IPv4 pool ID to allocate from. Default: null.
+  customer_owned_ipv4_pool_id: null # (Optional) Customer-owned IPv4 pool ID for AWS Outposts allocations. Default: null.
+  ipam_pool_id: null # (Optional) IPAM pool ID to allocate a sequential public IPv4 address from. Default: null.

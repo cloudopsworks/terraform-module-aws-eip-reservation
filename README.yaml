@@ -3,125 +3,164 @@ name: Terraform AWS Elastic IP Reservation Module
 
 license: "APACHE2"
 
+badges:
+  - name: Latest Release
+    image: https://img.shields.io/github/release/cloudopsworks/terraform-module-aws-eip-reservation.svg?style=for-the-badge
+    url: https://github.com/cloudopsworks/terraform-module-aws-eip-reservation/releases/latest
+  - name: Last Updated
+    image: https://img.shields.io/github/last-commit/cloudopsworks/terraform-module-aws-eip-reservation.svg?style=for-the-badge
+    url: https://github.com/cloudopsworks/terraform-module-aws-eip-reservation/commits
+
 copyrights:
   - name: "Cloud Ops Works LLC"
     url: "https://cloudops.works"
-    year: "2024"
+    year: "2021"
 
-github_repo: cloudopsworks/terraform-module-eip-reservation
+github_repo: cloudopsworks/terraform-module-aws-eip-reservation
 
 description: |-
-  This Terraform module is designed to manage AWS Elastic IP (EIP) reservations. It provides a simple and reusable way 
-  to allocate and associate Elastic IPs with AWS resources such as EC2 instances, network interfaces, and more. 
-  The module includes the following features:
-  
-  - Allocation of Elastic IPs
-  - Association of Elastic IPs with EC2 instances or network interfaces
-  - Support for tagging resources
-  - Conditional creation of resources based on input variables
-  - Integration with other AWS services and resources
-
-  The module is intended to be used as part of a larger infrastructure setup, allowing for easy management and 
-  reservation of Elastic IPs within your AWS environment.
+  Reusable Terraform module to allocate one or more AWS Elastic IP addresses with
+  Cloud Ops Works naming and tagging conventions. The module supports standalone
+  reservations as well as direct association to an instance, network interface,
+  public IPv4 pool, customer-owned IPv4 pool, or IPAM pool during allocation.
 
 # Introduction to the project
 introduction: |-
-  This module simplifies the process of reserving and managing AWS Elastic IPs. It allows for bulk allocation and easy association with other AWS resources, all while maintaining consistent tagging and organizational standards based on Cloud Ops Works practices.
+  This module provisions AWS `aws_eip` resources for teams that want a simple,
+  repeatable way to reserve public IPv4 addresses across environments while
+  keeping tags and names aligned with the standard Cloud Ops Works Terragrunt
+  hierarchy.
+
+  Use it when you need:
+
+  - one or many reserved Elastic IP addresses
+  - optional inline association to an EC2 instance or ENI
+  - optional allocation from a public pool, customer-owned pool, or IPAM pool
+  - consistent naming derived from organization, environment, spoke, and region
 
 # How to use this project
 usage: |-
-  To use this module within a Terragrunt configuration, include it in your `terragrunt.hcl` file:
+  Bootstrap a new deployment with Terragrunt scaffold:
+
+  ```sh
+  # 1. Create and enter the target deployment directory
+  mkdir -p prod/us-east-1/network/eip-reservation
+  cd prod/us-east-1/network/eip-reservation
+
+  # 2. Scaffold the module (do NOT use --working-dir)
+  terragrunt scaffold github.com/cloudopsworks/terraform-module-aws-eip-reservation
+
+  # 3. Edit inputs.yaml with deployment-specific values
+  #    (all keys and comments are pre-populated from .boilerplate/inputs.yaml)
+  vi inputs.yaml
+
+  # 4. Apply
+  terragrunt apply
+  ```
+
+  Example generated `inputs.yaml`:
+
+  ```yaml
+  reservation_number: 2 # (Optional) Number of Elastic IP addresses to allocate. Default: 1.
+
+  eip_settings: # (Optional) Elastic IP allocation settings. Default: {}.
+    domain: "vpc" # (Optional) Allocation domain. Use "vpc" for modern VPC allocations; "standard" only applies to legacy EC2-Classic capable accounts. Default: "vpc".
+    ip_address: null # (Optional) Specific address to allocate from an AWS-owned public IPv4 pool when available. Default: null.
+    associate_with_private_ip: null # (Optional) Primary or secondary private IPv4 address to associate when attaching the EIP during allocation. Default: null.
+    instance_id: null # (Optional) EC2 instance ID to associate during allocation. Default: null.
+    network_interface_id: null # (Optional) Network interface ID to associate during allocation. Default: null.
+    public_ipv4_pool_id: null # (Optional) Public IPv4 pool ID to allocate from. Default: null.
+    customer_owned_ipv4_pool_id: null # (Optional) Customer-owned IPv4 pool ID for AWS Outposts allocations. Default: null.
+    ipam_pool_id: null # (Optional) IPAM pool ID to allocate a sequential public IPv4 address from. Default: null.
+  ```
+
+  Example generated `terragrunt.hcl`:
 
   ```hcl
+  locals {
+    local_vars  = yamldecode(file("./inputs.yaml"))
+    spoke_vars  = yamldecode(file(find_in_parent_folders("spoke-inputs.yaml")))
+    region_vars = yamldecode(file(find_in_parent_folders("region-inputs.yaml")))
+    env_vars    = yamldecode(file(find_in_parent_folders("env-inputs.yaml")))
+    global_vars = yamldecode(file(find_in_parent_folders("global-inputs.yaml")))
+
+    local_tags  = jsondecode(file("./local-tags.json"))
+    spoke_tags  = jsondecode(file(find_in_parent_folders("spoke-tags.json")))
+    region_tags = jsondecode(file(find_in_parent_folders("region-tags.json")))
+    env_tags    = jsondecode(file(find_in_parent_folders("env-tags.json")))
+    global_tags = jsondecode(file(find_in_parent_folders("global-tags.json")))
+
+    tags = merge(
+      local.global_tags,
+      local.env_tags,
+      local.region_tags,
+      local.spoke_tags,
+      local.local_tags
+    )
+  }
+
+  include "root" {
+    path = find_in_parent_folders("root.hcl")
+  }
+
   terraform {
-    source = "github.com/cloudopsworks/terraform-module-aws-eip-reservation.git?ref=v1.0.0"
+    source = "github.com/cloudopsworks/terraform-module-aws-eip-reservation"
   }
 
   inputs = {
-    reservation_number = 1   # (Optional) Number of reserved Elastic IPs. Default is 1.
-    eip_settings = {   # (Optional) Map of settings for the EIP.
-      domain                      = "vpc"   # (Optional) Indicates whether the Elastic IP is for use with instances in a VPC or with instances in EC2-Classic. Possible values: vpc, standard. Default is "vpc".
-      ip_address                  = null    # (Optional) A specific IP address from an AWS public IPv4 pool. Default is null.
-      associate_with_private_ip   = null    # (Optional) The primary or secondary private IP address to associate with the Elastic IP. Default is null.
-      instance_id                 = null    # (Optional) The ID of an EC2 instance. Default is null.
-      network_interface_id        = null    # (Optional) The ID of a network interface. Default is null.
-      public_ipv4_pool_id         = null    # (Optional) The ID of a public IPv4 pool. Default is null.
-      customer_owned_ipv4_pool_id = null    # (Optional) The ID of a customer-owned IPv4 pool. Default is null.
-      ipam_pool_id                = null    # (Optional) The ID of an IPAM pool. Default is null.
-    }
-    is_hub = false   # (Optional) Is this a hub or spoke configuration? Default is false.
-    spoke_def = "001"   # (Optional) Spoke ID Number, must be a 3 digit number. Default is "001".
-    org = {   # (Required) Organization details.
-      organization_name = "example-org"  # (Required) Name of the organization.
-      organization_unit = "operations"   # (Required) Name of the organization unit.
-      environment_type  = "production"   # (Required) Type of the environment.
-      environment_name  = "main"         # (Required) Name of the environment.
-    }
-    extra_tags = {   # (Optional) Extra tags to add to the resources.
-      Owner = "CloudOps"
-    }
+    is_hub             = false
+    org                = local.env_vars.org
+    spoke_def          = local.spoke_vars.spoke
+    reservation_number = try(local.local_vars.reservation_number, 1)
+    eip_settings       = try(local.local_vars.eip_settings, {})
+    extra_tags         = local.tags
   }
-  ```
-
-  ### Variables documentation in YAML format:
-
-  ```yaml
-  reservation_number: 1   # (Optional) Number of reserved Elastic IPs. Default is 1.
-  eip_settings:   # (Optional) Map of settings for the EIP. Default is {}.
-    domain: "vpc"   # (Optional) Indicates whether the Elastic IP is for use with instances in a VPC or with instances in EC2-Classic. Possible values: vpc, standard. Default is "vpc".
-    ip_address: null   # (Optional) A specific IP address from an AWS public IPv4 pool. Default is null.
-    associate_with_private_ip: null   # (Optional) The primary or secondary private IP address to associate with the Elastic IP. Default is null.
-    instance_id: null   # (Optional) The ID of an EC2 instance. Default is null.
-    network_interface_id: null   # (Optional) The ID of a network interface. Default is null.
-    public_ipv4_pool_id: null   # (Optional) The ID of a public IPv4 pool. Default is null.
-    customer_owned_ipv4_pool_id: null   # (Optional) The ID of a customer-owned IPv4 pool. Default is null.
-    ipam_pool_id: null   # (Optional) The ID of an IPAM pool. Default is null.
-  is_hub: false   # (Optional) Is this a hub or spoke configuration? Possible values: true, false. Default is false.
-  spoke_def: "001"   # (Optional) Spoke ID Number, must be a 3 digit number. Default is "001".
-  org:   # (Required) Organization details.
-    organization_name: "example-org"   # (Required) Name of the organization.
-    organization_unit: "operations"    # (Required) Name of the organization unit.
-    environment_type: "production"     # (Required) Type of the environment.
-    environment_name: "main"           # (Required) Name of the environment.
-  extra_tags: {}   # (Optional) Extra tags to add to the resources. Default is {}.
   ```
 
 # Example usage
 examples: |-
-  ### Basic Usage
-  Create a single Elastic IP with default settings:
+  ### Reserve a single Elastic IP
+
   ```hcl
   inputs = {
-    org = {
-      organization_name = "example-org"
-      organization_unit = "it"
-      environment_type  = "staging"
-      environment_name  = "app"
+    reservation_number = 1
+    eip_settings = {
+      domain = "vpc"
     }
   }
   ```
 
-  ### Multiple Reservations
-  Reserve 5 Elastic IPs:
+  ### Reserve multiple Elastic IPs from IPAM
+
   ```hcl
   inputs = {
-    reservation_number = 5
-    org = {
-      organization_name = "example-org"
-      organization_unit = "it"
-      environment_type  = "prod"
-      environment_name  = "web"
+    reservation_number = 3
+    eip_settings = {
+      domain       = "vpc"
+      ipam_pool_id = "ipam-pool-1234567890abcdef0"
+    }
+  }
+  ```
+
+  ### Reserve and associate to an existing ENI
+
+  ```hcl
+  inputs = {
+    reservation_number = 1
+    eip_settings = {
+      domain               = "vpc"
+      network_interface_id = "eni-0123456789abcdef0"
+      associate_with_private_ip = "10.0.10.25"
     }
   }
   ```
 
 # How to get started quickly
 quickstart: |-
-  To get started quickly with this module:
-  1. Define your Terragrunt configuration in a `terragrunt.hcl` file.
-  2. Configure the required `org` variables to match your environment.
-  3. Run `terragrunt plan` to review the allocation plan.
-  4. Run `terragrunt apply` to allocate and reserve the Elastic IPs.
+  1. Create a deployment directory and run `terragrunt scaffold github.com/cloudopsworks/terraform-module-aws-eip-reservation`.
+  2. Edit `inputs.yaml` and set `reservation_number` plus any `eip_settings` needed for your allocation flow.
+  3. Run `terragrunt plan` to confirm the requested public IPv4 reservations and associations.
+  4. Run `terragrunt apply` to allocate the Elastic IP addresses.
 
 include:
   - "docs/targets.md"
