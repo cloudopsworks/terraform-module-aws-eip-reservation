@@ -8,40 +8,27 @@
   -->
 [![README Header][readme_header_img]][readme_header_link]
 
-[![cloudopsworks][logo]](https://cloudops.works/)
+[![cloudopsworks][logo]](https://cloudopsworks.co/)
 
 # Terraform AWS Elastic IP Reservation Module
 
+ [![Latest Release](https://img.shields.io/github/release/cloudopsworks/terraform-module-aws-eip-reservation.svg?style=for-the-badge)](https://github.com/cloudopsworks/terraform-module-aws-eip-reservation/releases/latest) [![Last Updated](https://img.shields.io/github/last-commit/cloudopsworks/terraform-module-aws-eip-reservation.svg?style=for-the-badge)](https://github.com/cloudopsworks/terraform-module-aws-eip-reservation/commits)
 
 
-
-This Terraform module is designed to manage AWS Elastic IP (EIP) reservations. It provides a simple and reusable way 
-to allocate and associate Elastic IPs with AWS resources such as EC2 instances, network interfaces, and more. 
-The module includes the following features:
-
-- Allocation of Elastic IPs
-- Association of Elastic IPs with EC2 instances or network interfaces
-- Support for tagging resources
-- Conditional creation of resources based on input variables
-- Integration with other AWS services and resources
-
-The module is intended to be used as part of a larger infrastructure setup, allowing for easy management and 
-reservation of Elastic IPs within your AWS environment.
+Reusable Terraform module to allocate one or more AWS Elastic IP addresses with
+Cloud Ops Works naming and tagging conventions. The module supports standalone
+reservations as well as direct association to an instance, network interface,
+public IPv4 pool, customer-owned IPv4 pool, or IPAM pool during allocation.
 
 
 ---
 
 This project is part of our comprehensive approach towards DevOps Acceleration. 
 [<img align="right" title="Share via Email" width="24" height="24" src="https://docs.cloudops.works/images/ionicons/ios-mail.svg"/>][share_email]
-[<img align="right" title="Share on Google+" width="24" height="24" src="https://docs.cloudops.works/images/ionicons/logo-googleplus.svg" />][share_googleplus]
 [<img align="right" title="Share on Facebook" width="24" height="24" src="https://docs.cloudops.works/images/ionicons/logo-facebook.svg" />][share_facebook]
 [<img align="right" title="Share on Reddit" width="24" height="24" src="https://docs.cloudops.works/images/ionicons/logo-reddit.svg" />][share_reddit]
 [<img align="right" title="Share on LinkedIn" width="24" height="24" src="https://docs.cloudops.works/images/ionicons/logo-linkedin.svg" />][share_linkedin]
-[<img align="right" title="Share on Twitter" width="24" height="24" src="https://docs.cloudops.works/images/ionicons/logo-twitter.svg" />][share_twitter]
-
-
-[![Terraform Open Source Modules](https://docs.cloudops.works/images/terraform-open-source-modules.svg)][terraform_modules]
-
+[<img align="right" title="Share on X" width="24" height="24" src="https://docs.cloudops.works/images/ionicons/logo-twitter.svg" />][share_twitter]
 
 
 It's 100% Open Source and licensed under the [APACHE2](LICENSE).
@@ -61,105 +48,144 @@ We have [*lots of terraform modules*][terraform_modules] that are Open Source an
 
 ## Introduction
 
-This module simplifies the process of reserving and managing AWS Elastic IPs. It allows for bulk allocation and easy association with other AWS resources, all while maintaining consistent tagging and organizational standards based on Cloud Ops Works practices.
+This module provisions AWS `aws_eip` resources for teams that want a simple,
+repeatable way to reserve public IPv4 addresses across environments while
+keeping tags and names aligned with the standard Cloud Ops Works Terragrunt
+hierarchy.
+
+Use it when you need:
+
+- one or many reserved Elastic IP addresses
+- optional inline association to an EC2 instance or ENI
+- optional allocation from a public pool, customer-owned pool, or IPAM pool
+- consistent naming derived from organization, environment, spoke, and region
 
 ## Usage
 
 
 **IMPORTANT:** The `master` branch is used in `source` just as an example. In your code, do not pin to `master` because there may be breaking changes between releases.
-Instead pin to the release tag (e.g. `?ref=vX.Y.Z`) of one of our [latest releases](https://github.com/cloudopsworks/terraform-module-eip-reservation/releases).
+Instead pin to the release tag (e.g. `?ref=vX.Y.Z`) of one of our [latest releases](https://github.com/cloudopsworks/terraform-module-aws-eip-reservation/releases).
 
 
-To use this module within a Terragrunt configuration, include it in your `terragrunt.hcl` file:
+Bootstrap a new deployment with Terragrunt scaffold:
+
+```sh
+# 1. Create and enter the target deployment directory
+mkdir -p prod/us-east-1/network/eip-reservation
+cd prod/us-east-1/network/eip-reservation
+
+# 2. Scaffold the module (do NOT use --working-dir)
+terragrunt scaffold github.com/cloudopsworks/terraform-module-aws-eip-reservation
+
+# 3. Edit inputs.yaml with deployment-specific values
+#    (all keys and comments are pre-populated from .boilerplate/inputs.yaml)
+vi inputs.yaml
+
+# 4. Apply
+terragrunt apply
+```
+
+Example generated `inputs.yaml`:
+
+```yaml
+reservation_number: 2 # (Optional) Number of Elastic IP addresses to allocate. Default: 1.
+
+eip_settings: # (Optional) Elastic IP allocation settings. Default: {}.
+  domain: "vpc" # (Optional) Allocation domain. Use "vpc" for modern VPC allocations; "standard" only applies to legacy EC2-Classic capable accounts. Default: "vpc".
+  ip_address: null # (Optional) Specific address to allocate from an AWS-owned public IPv4 pool when available. Default: null.
+  associate_with_private_ip: null # (Optional) Primary or secondary private IPv4 address to associate when attaching the EIP during allocation. Default: null.
+  instance_id: null # (Optional) EC2 instance ID to associate during allocation. Default: null.
+  network_interface_id: null # (Optional) Network interface ID to associate during allocation. Default: null.
+  public_ipv4_pool_id: null # (Optional) Public IPv4 pool ID to allocate from. Default: null.
+  customer_owned_ipv4_pool_id: null # (Optional) Customer-owned IPv4 pool ID for AWS Outposts allocations. Default: null.
+  ipam_pool_id: null # (Optional) IPAM pool ID to allocate a sequential public IPv4 address from. Default: null.
+```
+
+Example generated `terragrunt.hcl`:
 
 ```hcl
+locals {
+  local_vars  = yamldecode(file("./inputs.yaml"))
+  spoke_vars  = yamldecode(file(find_in_parent_folders("spoke-inputs.yaml")))
+  region_vars = yamldecode(file(find_in_parent_folders("region-inputs.yaml")))
+  env_vars    = yamldecode(file(find_in_parent_folders("env-inputs.yaml")))
+  global_vars = yamldecode(file(find_in_parent_folders("global-inputs.yaml")))
+
+  local_tags  = jsondecode(file("./local-tags.json"))
+  spoke_tags  = jsondecode(file(find_in_parent_folders("spoke-tags.json")))
+  region_tags = jsondecode(file(find_in_parent_folders("region-tags.json")))
+  env_tags    = jsondecode(file(find_in_parent_folders("env-tags.json")))
+  global_tags = jsondecode(file(find_in_parent_folders("global-tags.json")))
+
+  tags = merge(
+    local.global_tags,
+    local.env_tags,
+    local.region_tags,
+    local.spoke_tags,
+    local.local_tags
+  )
+}
+
+include "root" {
+  path = find_in_parent_folders("root.hcl")
+}
+
 terraform {
-  source = "github.com/cloudopsworks/terraform-module-aws-eip-reservation.git?ref=v1.0.0"
+  source = "github.com/cloudopsworks/terraform-module-aws-eip-reservation"
 }
 
 inputs = {
-  reservation_number = 1   # (Optional) Number of reserved Elastic IPs. Default is 1.
-  eip_settings = {   # (Optional) Map of settings for the EIP.
-    domain                      = "vpc"   # (Optional) Indicates whether the Elastic IP is for use with instances in a VPC or with instances in EC2-Classic. Possible values: vpc, standard. Default is "vpc".
-    ip_address                  = null    # (Optional) A specific IP address from an AWS public IPv4 pool. Default is null.
-    associate_with_private_ip   = null    # (Optional) The primary or secondary private IP address to associate with the Elastic IP. Default is null.
-    instance_id                 = null    # (Optional) The ID of an EC2 instance. Default is null.
-    network_interface_id        = null    # (Optional) The ID of a network interface. Default is null.
-    public_ipv4_pool_id         = null    # (Optional) The ID of a public IPv4 pool. Default is null.
-    customer_owned_ipv4_pool_id = null    # (Optional) The ID of a customer-owned IPv4 pool. Default is null.
-    ipam_pool_id                = null    # (Optional) The ID of an IPAM pool. Default is null.
-  }
-  is_hub = false   # (Optional) Is this a hub or spoke configuration? Default is false.
-  spoke_def = "001"   # (Optional) Spoke ID Number, must be a 3 digit number. Default is "001".
-  org = {   # (Required) Organization details.
-    organization_name = "example-org"  # (Required) Name of the organization.
-    organization_unit = "operations"   # (Required) Name of the organization unit.
-    environment_type  = "production"   # (Required) Type of the environment.
-    environment_name  = "main"         # (Required) Name of the environment.
-  }
-  extra_tags = {   # (Optional) Extra tags to add to the resources.
-    Owner = "CloudOps"
-  }
+  is_hub             = false
+  org                = local.env_vars.org
+  spoke_def          = local.spoke_vars.spoke
+  reservation_number = try(local.local_vars.reservation_number, 1)
+  eip_settings       = try(local.local_vars.eip_settings, {})
+  extra_tags         = local.tags
 }
-```
-
-### Variables documentation in YAML format:
-
-```yaml
-reservation_number: 1   # (Optional) Number of reserved Elastic IPs. Default is 1.
-eip_settings:   # (Optional) Map of settings for the EIP. Default is {}.
-  domain: "vpc"   # (Optional) Indicates whether the Elastic IP is for use with instances in a VPC or with instances in EC2-Classic. Possible values: vpc, standard. Default is "vpc".
-  ip_address: null   # (Optional) A specific IP address from an AWS public IPv4 pool. Default is null.
-  associate_with_private_ip: null   # (Optional) The primary or secondary private IP address to associate with the Elastic IP. Default is null.
-  instance_id: null   # (Optional) The ID of an EC2 instance. Default is null.
-  network_interface_id: null   # (Optional) The ID of a network interface. Default is null.
-  public_ipv4_pool_id: null   # (Optional) The ID of a public IPv4 pool. Default is null.
-  customer_owned_ipv4_pool_id: null   # (Optional) The ID of a customer-owned IPv4 pool. Default is null.
-  ipam_pool_id: null   # (Optional) The ID of an IPAM pool. Default is null.
-is_hub: false   # (Optional) Is this a hub or spoke configuration? Possible values: true, false. Default is false.
-spoke_def: "001"   # (Optional) Spoke ID Number, must be a 3 digit number. Default is "001".
-org:   # (Required) Organization details.
-  organization_name: "example-org"   # (Required) Name of the organization.
-  organization_unit: "operations"    # (Required) Name of the organization unit.
-  environment_type: "production"     # (Required) Type of the environment.
-  environment_name: "main"           # (Required) Name of the environment.
-extra_tags: {}   # (Optional) Extra tags to add to the resources. Default is {}.
 ```
 
 ## Quick Start
 
-To get started quickly with this module:
-1. Define your Terragrunt configuration in a `terragrunt.hcl` file.
-2. Configure the required `org` variables to match your environment.
-3. Run `terragrunt plan` to review the allocation plan.
-4. Run `terragrunt apply` to allocate and reserve the Elastic IPs.
+1. Create a deployment directory and run `terragrunt scaffold github.com/cloudopsworks/terraform-module-aws-eip-reservation`.
+2. Edit `inputs.yaml` and set `reservation_number` plus any `eip_settings` needed for your allocation flow.
+3. Run `terragrunt plan` to confirm the requested public IPv4 reservations and associations.
+4. Run `terragrunt apply` to allocate the Elastic IP addresses.
 
 
 ## Examples
 
-### Basic Usage
-Create a single Elastic IP with default settings:
+### Reserve a single Elastic IP
+
 ```hcl
 inputs = {
-  org = {
-    organization_name = "example-org"
-    organization_unit = "it"
-    environment_type  = "staging"
-    environment_name  = "app"
+  reservation_number = 1
+  eip_settings = {
+    domain = "vpc"
   }
 }
 ```
 
-### Multiple Reservations
-Reserve 5 Elastic IPs:
+### Reserve multiple Elastic IPs from IPAM
+
 ```hcl
 inputs = {
-  reservation_number = 5
-  org = {
-    organization_name = "example-org"
-    organization_unit = "it"
-    environment_type  = "prod"
-    environment_name  = "web"
+  reservation_number = 3
+  eip_settings = {
+    domain       = "vpc"
+    ipam_pool_id = "ipam-pool-1234567890abcdef0"
+  }
+}
+```
+
+### Reserve and associate to an existing ENI
+
+```hcl
+inputs = {
+  reservation_number = 1
+  eip_settings = {
+    domain               = "vpc"
+    network_interface_id = "eni-0123456789abcdef0"
+    associate_with_private_ip = "10.0.10.25"
   }
 }
 ```
@@ -173,9 +199,7 @@ Available targets:
   help                                Help screen
   help/all                            Display help for all targets
   help/short                          This help short screen
-  init/aws                            Initialize the project for a specific cloud provider: AWS
-  init/azurerm                        Initialize the project for a specific cloud provider: Azure RM
-  init/gcp                            Initialize the project for a specific cloud provider: GCP
+  init/%                              Initialize the project for a specific cloud provider: %S
   lint                                Lint terraform/opentofu code
   tag                                 Tag the current version
 
@@ -185,13 +209,13 @@ Available targets:
 | Name | Version |
 |------|---------|
 | <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.3 |
-| <a name="requirement_aws"></a> [aws](#requirement\_aws) | ~> 6.34 |
+| <a name="requirement_aws"></a> [aws](#requirement\_aws) | ~> 6.35 |
 
 ## Providers
 
 | Name | Version |
 |------|---------|
-| <a name="provider_aws"></a> [aws](#provider\_aws) | 6.34.0 |
+| <a name="provider_aws"></a> [aws](#provider\_aws) | ~> 6.35 |
 
 ## Modules
 
@@ -210,19 +234,19 @@ Available targets:
 
 | Name | Description | Type | Default | Required |
 |------|-------------|------|---------|:--------:|
-| <a name="input_eip_settings"></a> [eip\_settings](#input\_eip\_settings) | (optional) Map of settings for the EIP, defaults to empty map | <pre>object({<br/>    domain                      = optional(string, "vpc")<br/>    ip_address                  = optional(string, null)<br/>    associate_with_private_ip   = optional(string, null)<br/>    instance_id                 = optional(string, null)<br/>    network_interface_id        = optional(string, null)<br/>    public_ipv4_pool_id         = optional(string, null)<br/>    customer_owned_ipv4_pool_id = optional(string, null)<br/>    ipam_pool_id                = optional(string, null)<br/>  })</pre> | `{}` | no |
+| <a name="input_eip_settings"></a> [eip\_settings](#input\_eip\_settings) | (Optional) Elastic IP allocation settings. Default is {}. | <pre>object({<br/>    domain                      = optional(string, "vpc")<br/>    ip_address                  = optional(string, null)<br/>    associate_with_private_ip   = optional(string, null)<br/>    instance_id                 = optional(string, null)<br/>    network_interface_id        = optional(string, null)<br/>    public_ipv4_pool_id         = optional(string, null)<br/>    customer_owned_ipv4_pool_id = optional(string, null)<br/>    ipam_pool_id                = optional(string, null)<br/>  })</pre> | `{}` | no |
 | <a name="input_extra_tags"></a> [extra\_tags](#input\_extra\_tags) | Extra tags to add to the resources | `map(string)` | `{}` | no |
 | <a name="input_is_hub"></a> [is\_hub](#input\_is\_hub) | Is this a hub or spoke configuration? | `bool` | `false` | no |
 | <a name="input_org"></a> [org](#input\_org) | Organization details | <pre>object({<br/>    organization_name = string<br/>    organization_unit = string<br/>    environment_type  = string<br/>    environment_name  = string<br/>  })</pre> | n/a | yes |
-| <a name="input_reservation_number"></a> [reservation\_number](#input\_reservation\_number) | (optional) Number of reserved Elastic IPs, defaults to 1 | `number` | `1` | no |
+| <a name="input_reservation_number"></a> [reservation\_number](#input\_reservation\_number) | (Optional) Number of Elastic IP addresses to allocate. Default is 1. | `number` | `1` | no |
 | <a name="input_spoke_def"></a> [spoke\_def](#input\_spoke\_def) | Spoke ID Number, must be a 3 digit number | `string` | `"001"` | no |
 
 ## Outputs
 
 | Name | Description |
 |------|-------------|
-| <a name="output_public_ip_ids"></a> [public\_ip\_ids](#output\_public\_ip\_ids) | n/a |
-| <a name="output_public_ips"></a> [public\_ips](#output\_public\_ips) | n/a |
+| <a name="output_public_ip_ids"></a> [public\_ip\_ids](#output\_public\_ip\_ids) | Allocation IDs returned for the reserved Elastic IP addresses created by this module. |
+| <a name="output_public_ips"></a> [public\_ips](#output\_public\_ips) | Reserved Elastic IP public IPv4 addresses created by this module. |
 
 
 
@@ -230,12 +254,11 @@ Available targets:
 
 **Got a question?** We got answers. 
 
-File a GitHub [issue](https://github.com/cloudopsworks/terraform-module-eip-reservation/issues), send us an [email][email] or join our [Slack Community][slack].
+File a GitHub [issue](https://github.com/cloudopsworks/terraform-module-aws-eip-reservation/issues), send us an [email][email] or join our [Slack Community][slack].
 
-[![README Commercial Support][readme_commercial_support_img]][readme_commercial_support_link]
 
 ## DevOps Tools
-
+[]()
 ## Slack Community
 
 
@@ -247,7 +270,7 @@ File a GitHub [issue](https://github.com/cloudopsworks/terraform-module-eip-rese
 
 ### Bug Reports & Feature Requests
 
-Please use the [issue tracker](https://github.com/cloudopsworks/terraform-module-eip-reservation/issues) to report any bugs or file feature requests.
+Please use the [issue tracker](https://github.com/cloudopsworks/terraform-module-aws-eip-reservation/issues) to report any bugs or file feature requests.
 
 ### Developing
 
@@ -256,7 +279,7 @@ Please use the [issue tracker](https://github.com/cloudopsworks/terraform-module
 
 ## Copyrights
 
-Copyright © 2024-2026 [Cloud Ops Works LLC](https://cloudops.works)
+Copyright © 2021-2026 [Cloud Ops Works LLC](https://cloudops.works)
 
 
 
@@ -313,32 +336,31 @@ This project is maintained by [Cloud Ops Works LLC][website].
 [![README Footer][readme_footer_img]][readme_footer_link]
 [![Beacon][beacon]][website]
 
-  [logo]: https://cloudops.works/logo-300x69.svg
-  [docs]: https://cowk.io/docs?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-eip-reservation&utm_content=docs
-  [website]: https://cowk.io/homepage?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-eip-reservation&utm_content=website
-  [github]: https://cowk.io/github?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-eip-reservation&utm_content=github
-  [jobs]: https://cowk.io/jobs?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-eip-reservation&utm_content=jobs
-  [hire]: https://cowk.io/hire?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-eip-reservation&utm_content=hire
-  [slack]: https://cowk.io/slack?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-eip-reservation&utm_content=slack
-  [linkedin]: https://cowk.io/linkedin?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-eip-reservation&utm_content=linkedin
-  [twitter]: https://cowk.io/twitter?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-eip-reservation&utm_content=twitter
-  [testimonial]: https://cowk.io/leave-testimonial?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-eip-reservation&utm_content=testimonial
-  [office_hours]: https://cloudops.works/office-hours?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-eip-reservation&utm_content=office_hours
-  [newsletter]: https://cowk.io/newsletter?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-eip-reservation&utm_content=newsletter
-  [email]: https://cowk.io/email?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-eip-reservation&utm_content=email
-  [commercial_support]: https://cowk.io/commercial-support?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-eip-reservation&utm_content=commercial_support
-  [we_love_open_source]: https://cowk.io/we-love-open-source?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-eip-reservation&utm_content=we_love_open_source
-  [terraform_modules]: https://cowk.io/terraform-modules?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-eip-reservation&utm_content=terraform_modules
-  [readme_header_img]: https://cloudops.works/readme/header/img
-  [readme_header_link]: https://cloudops.works/readme/header/link?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-eip-reservation&utm_content=readme_header_link
-  [readme_footer_img]: https://cloudops.works/readme/footer/img
-  [readme_footer_link]: https://cloudops.works/readme/footer/link?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-eip-reservation&utm_content=readme_footer_link
-  [readme_commercial_support_img]: https://cloudops.works/readme/commercial-support/img
-  [readme_commercial_support_link]: https://cloudops.works/readme/commercial-support/link?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-eip-reservation&utm_content=readme_commercial_support_link
-  [share_twitter]: https://twitter.com/intent/tweet/?text=Terraform+AWS+Elastic+IP+Reservation+Module&url=https://github.com/cloudopsworks/terraform-module-eip-reservation
-  [share_linkedin]: https://www.linkedin.com/shareArticle?mini=true&title=Terraform+AWS+Elastic+IP+Reservation+Module&url=https://github.com/cloudopsworks/terraform-module-eip-reservation
-  [share_reddit]: https://reddit.com/submit/?url=https://github.com/cloudopsworks/terraform-module-eip-reservation
-  [share_facebook]: https://facebook.com/sharer/sharer.php?u=https://github.com/cloudopsworks/terraform-module-eip-reservation
-  [share_googleplus]: https://plus.google.com/share?url=https://github.com/cloudopsworks/terraform-module-eip-reservation
-  [share_email]: mailto:?subject=Terraform+AWS+Elastic+IP+Reservation+Module&body=https://github.com/cloudopsworks/terraform-module-eip-reservation
-  [beacon]: https://ga-beacon.cloudops.works/G-7XWMFVFXZT/cloudopsworks/terraform-module-eip-reservation?pixel&cs=github&cm=readme&an=terraform-module-eip-reservation
+  [logo]: https://cloudopsworks.co/images/main-logo.png
+  [docs]: https://cloudopsworks.co/resources?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-eip-reservation&utm_content=docs
+  [website]: https://cloudopsworks.co?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-eip-reservation&utm_content=website
+  [github]: https://cloudopsworks.co/github?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-eip-reservation&utm_content=github
+  [jobs]: https://cloudopsworks.co/jobs?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-eip-reservation&utm_content=jobs
+  [hire]: https://cloudopsworks.co/hire?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-eip-reservation&utm_content=hire
+  [slack]: https://cloudopsworks.co/slack?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-eip-reservation&utm_content=slack
+  [linkedin]: https://cloudopsworks.co/linkedin?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-eip-reservation&utm_content=linkedin
+  [x]: https://cloudopsworks.co/x?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-eip-reservation&utm_content=x
+  [testimonial]: https://cloudopsworks.co/case-studies?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-eip-reservation&utm_content=testimonial
+  [office_hours]: https://cloudopsworks.co/office-hours?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-eip-reservation&utm_content=office_hours
+  [newsletter]: https://cloudopsworks.co/resources?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-eip-reservation&utm_content=newsletter
+  [email]: https://cloudopsworks.co/contact?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-eip-reservation&utm_content=email
+  [commercial_support]: https://cloudopsworks.co/services?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-eip-reservation&utm_content=commercial_support
+  [we_love_open_source]: https://cloudopsworks.co/open-source?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-eip-reservation&utm_content=we_love_open_source
+  [terraform_modules]: https://cloudopsworks.co/open-source?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-eip-reservation&utm_content=terraform_modules
+  [readme_header_img]: https://cloudopsworks.co/images/readme-header.png
+  [readme_header_link]: https://cloudopsworks.co/readme/header/link?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-eip-reservation&utm_content=readme_header_link
+  [readme_footer_img]: https://cloudopsworks.co/images/main-logo-footer.png
+  [readme_footer_link]: https://cloudopsworks.co/readme/footer/link?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-eip-reservation&utm_content=readme_footer_link
+  [readme_commercial_support_img]: https://cloudopsworks.co/readme/commercial-support/img
+  [readme_commercial_support_link]: https://cloudopsworks.co/readme/commercial-support/link?utm_source=github&utm_medium=readme&utm_campaign=cloudopsworks/terraform-module-aws-eip-reservation&utm_content=readme_commercial_support_link
+  [share_twitter]: https://x.com/intent/tweet/?text=Terraform+AWS+Elastic+IP+Reservation+Module&url=https://github.com/cloudopsworks/terraform-module-aws-eip-reservation
+  [share_linkedin]: https://www.linkedin.com/shareArticle?mini=true&title=Terraform+AWS+Elastic+IP+Reservation+Module&url=https://github.com/cloudopsworks/terraform-module-aws-eip-reservation
+  [share_reddit]: https://reddit.com/submit/?url=https://github.com/cloudopsworks/terraform-module-aws-eip-reservation
+  [share_facebook]: https://facebook.com/sharer/sharer.php?u=https://github.com/cloudopsworks/terraform-module-aws-eip-reservation
+  [share_email]: mailto:?subject=Terraform+AWS+Elastic+IP+Reservation+Module&body=https://github.com/cloudopsworks/terraform-module-aws-eip-reservation
+  [beacon]: https://ga-beacon.cloudospworks.co/G-QMZVYYN2VN/cloudopsworks/terraform-module-aws-eip-reservation?pixel&cs=github&cm=readme&an=terraform-module-aws-eip-reservation
